@@ -1,209 +1,230 @@
 import Head from 'next/head'
+import { useEffect, useState } from 'react';
+import axios from "axios";
+import {
+    useQuery,
+    QueryClient,
+    QueryClientProvider,
+} from "react-query";
+import { categoriesMap } from '../constants';
+import { SearchStyled, ButtonStyled, ArticleStyled, DeleteButtonStyled } from '../styledComponents';
 
-export default function Home() {
-  return (
-    <div className="container">
-      <Head>
-        <title>Create Next App</title>
-        <link rel="icon" href="/favicon.ico" />
-      </Head>
+const queryClient = new QueryClient();
 
-      <main>
-        <h1 className="title">
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
+const Search = ({ searchChange }) => {
+    return <SearchStyled
+        type='search'
+        placeholder='Search articles'
+        onChange={(event) => { searchChange(event.target.value) }}
+    />;
+};
 
-        <p className="description">
-          Get started by editing <code>pages/index.js</code>
-        </p>
+const ShowAllButton = ({ showAllArticles }) => {
+    return <ButtonStyled onClick={() => { showAllArticles() }}>Show All</ButtonStyled>;
+};
 
-        <div className="grid">
-          <a href="https://nextjs.org/docs" className="card">
-            <h3>Documentation &rarr;</h3>
-            <p>Find in-depth information about Next.js features and API.</p>
-          </a>
+const CategoryButton = ({ title, id, filterArticlesByCategory }) => {
+    return <ButtonStyled
+        onClick={() => { filterArticlesByCategory(id) }}
+    >
+        {title}
+    </ButtonStyled>;
+};
 
-          <a href="https://nextjs.org/learn" className="card">
-            <h3>Learn &rarr;</h3>
-            <p>Learn about Next.js in an interactive course with quizzes!</p>
-          </a>
+const Article = ({ newsInfo = {}, deleteArticle }) => {
 
-          <a
-            href="https://github.com/vercel/next.js/tree/master/examples"
-            className="card"
-          >
-            <h3>Examples &rarr;</h3>
-            <p>Discover and deploy boilerplate example Next.js projects.</p>
-          </a>
+    const imageSource = `https://www.alpha-orbital.com/assets/images/post_img/${newsInfo.post_thumbnail}`;
+    const articleSource = `https://www.alpha-orbital.com/news/${newsInfo.slug}`;
+    const clearedText = newsInfo.excerpt?.replace(/<\/?p[^>]*>/g, "");
 
-          <a
-            href="https://vercel.com/import?filter=next.js&utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className="card"
-          >
-            <h3>Deploy &rarr;</h3>
-            <p>
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
-        </div>
-      </main>
+    return (
+        <ArticleStyled>
+            <div>
+                <a
+                    target="_blank"
+                    rel="noreferrer"
+                    href={articleSource}
+                >
+                    <img src={imageSource} />
+                </a>
+            </div>
+            <div>
+                <h3>
+                    <a
+                        target="_blank"
+                        rel="noreferrer"
+                        href={articleSource}
+                    >
+                        {newsInfo.title}
+                    </a>
+                </h3>
+                <p>
+                    {clearedText}
+                    <a
+                        target="_blank"
+                        rel="noreferrer"
+                        href={articleSource}
+                    >
+                        Full Article
+                    </a>
+                </p>
+            </div>
+            <div><DeleteButtonStyled onClick={()=>{ deleteArticle(newsInfo.slug) }}>Delete</DeleteButtonStyled></div>
+        </ArticleStyled>
+    )
+}
 
-      <footer>
-        <a
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <img src="/vercel.svg" alt="Vercel" className="logo" />
-        </a>
-      </footer>
+const Main = () => {
 
-      <style jsx>{`
-        .container {
-          min-height: 100vh;
-          padding: 0 0.5rem;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
+    const [filteredNews, setFilteredNews] = useState([]);
+    const [filteredCategories, setFilteredCategories] = useState(categoriesMap);
+    const [selectedCategory, setSelectedCategory] = useState(null);
+    const [searchInput, setSearchInput] = useState('');
+
+    const useNews = () => {
+        return useQuery("news", async () => {
+            const { data } = await axios.get(
+                "https://www.alpha-orbital.com/last-100-news.json"
+            );
+
+            const newsCategories = data.reduce((acc, { post_category_id }) => {
+                acc[post_category_id] = acc[post_category_id] + 1;
+                return acc;
+            }, { 1: 0, 2: 0, 3: 0, 4: 0 });
+
+            setFilteredCategories(categoriesMap.filter(({ id }) => newsCategories[id] > 0));
+            setFilteredNews(fetchedNews);
+
+            return data;
+        });
+    }
+
+    const { data: fetchedNews } = useNews();
+
+    const handleSearchChange = (searchValue) => {
+        setSearchInput(searchValue);
+    }
+
+    const handleFilterArticlesByCategory = (id) => {
+        const filteredArticlesByCategory = fetchedNews.filter(({ post_category_id }) => {
+            return Number(post_category_id) === id;
+        });
+
+        setSelectedCategory(id);
+        setFilteredNews(filteredArticlesByCategory);
+    };
+
+    const handleShowAllArticles = () => {
+        setSelectedCategory(null);
+        setFilteredNews(fetchedNews);
+    }
+
+    const handleFilterArticlesBySearchField = () => {
+        const filteredArticlesBySearchField = filteredNews.filter(({ title, excerpt }) => {
+            return title.toLowerCase().includes(searchInput.toLowerCase())
+                || excerpt.toLowerCase().includes(searchInput.toLowerCase());
+        });
+        setFilteredNews(filteredArticlesBySearchField);
+    };
+
+    const handleDeleteArticle = (deleteArticleSlug) => {
+        setFilteredNews(filteredNews.filter(({ slug }) => slug !== deleteArticleSlug));
+    }
+
+    useEffect(() => {
+        if (searchInput.length >= 3) {
+            handleFilterArticlesBySearchField();
         }
-
-        main {
-          padding: 5rem 0;
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
+        if (searchInput.length < 3) {
+            if (selectedCategory) {
+                handleFilterArticlesByCategory(selectedCategory);
+            } else {
+                handleShowAllArticles();
+            }
         }
+    }, [searchInput]);
 
-        footer {
-          width: 100%;
-          height: 100px;
-          border-top: 1px solid #eaeaea;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
+    const renderNews = (news = []) => (
+        <>
+            {
+                news.map((newsItem, i) => {
+                    return <Article key={i} newsInfo={newsItem} deleteArticle={handleDeleteArticle} />
+                })
+            }
+        </>
+    );
 
-        footer img {
-          margin-left: 0.5rem;
-        }
+    const renderCategories = (categories = []) => (
+        <>
+            {
+                categories.map(({ title, id }, i) => {
+                    return (
+                        <CategoryButton key={i} title={title} id={id} filterArticlesByCategory={handleFilterArticlesByCategory} />
+                    )
+                })
+            }
+        </>
+    );
 
-        footer a {
-          display: flex;
-          justify-content: center;
-          align-items: center;
-        }
+    return (
+        <div className="container">
+            <Head>
+                <title>100 lastest news</title>
+                <link rel="icon" href="/favicon.ico" />
+            </Head>
+            <nav>
+                {renderCategories(filteredCategories)}
+                <ShowAllButton showAllArticles={handleShowAllArticles} />
+            </nav>
+            <main>
+                <Search searchChange={handleSearchChange} />
+                <div>Current filtered news count: {filteredNews?.length}</div>
 
-        a {
-          color: inherit;
-          text-decoration: none;
-        }
+                {renderNews(filteredNews)}
+            </main>
 
-        .title a {
-          color: #0070f3;
-          text-decoration: none;
-        }
+        <style jsx>{`
+            .container {
+                min-height: 100vh;
+                padding: 0 0.5rem;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+            }
+            main {
+                padding: 5rem 0;
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+            }
+            }
+        `}</style>
 
-        .title a:hover,
-        .title a:focus,
-        .title a:active {
-          text-decoration: underline;
-        }
-
-        .title {
-          margin: 0;
-          line-height: 1.15;
-          font-size: 4rem;
-        }
-
-        .title,
-        .description {
-          text-align: center;
-        }
-
-        .description {
-          line-height: 1.5;
-          font-size: 1.5rem;
-        }
-
-        code {
-          background: #fafafa;
-          border-radius: 5px;
-          padding: 0.75rem;
-          font-size: 1.1rem;
-          font-family: Menlo, Monaco, Lucida Console, Liberation Mono,
-            DejaVu Sans Mono, Bitstream Vera Sans Mono, Courier New, monospace;
-        }
-
-        .grid {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-wrap: wrap;
-
-          max-width: 800px;
-          margin-top: 3rem;
-        }
-
-        .card {
-          margin: 1rem;
-          flex-basis: 45%;
-          padding: 1.5rem;
-          text-align: left;
-          color: inherit;
-          text-decoration: none;
-          border: 1px solid #eaeaea;
-          border-radius: 10px;
-          transition: color 0.15s ease, border-color 0.15s ease;
-        }
-
-        .card:hover,
-        .card:focus,
-        .card:active {
-          color: #0070f3;
-          border-color: #0070f3;
-        }
-
-        .card h3 {
-          margin: 0 0 1rem 0;
-          font-size: 1.5rem;
-        }
-
-        .card p {
-          margin: 0;
-          font-size: 1.25rem;
-          line-height: 1.5;
-        }
-
-        .logo {
-          height: 1em;
-        }
-
-        @media (max-width: 600px) {
-          .grid {
-            width: 100%;
-            flex-direction: column;
-          }
-        }
-      `}</style>
-
-      <style jsx global>{`
-        html,
-        body {
-          padding: 0;
-          margin: 0;
-          font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
-            Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue,
-            sans-serif;
-        }
-
-        * {
-          box-sizing: border-box;
-        }
-      `}</style>
+        <style jsx global>{`
+            html,
+            body {
+            padding: 0;
+            margin: 0;
+            font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto,
+                Oxygen, Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue,
+                sans-serif;
+            }
+            * {
+            box-sizing: border-box;
+            }
+        `}
+        </style>
     </div>
-  )
+    )
+}
+
+export default function App() {
+    return (
+        <QueryClientProvider client={queryClient}>
+            <Main />
+        </QueryClientProvider>
+    );
 }
